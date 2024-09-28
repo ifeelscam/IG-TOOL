@@ -8,7 +8,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes, ConversationHandler
 
 # Load token from environment variable
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TOKEN = os.getenv("API")
 
 # Conversation states
 USERNAME, PASSWORD, TWO_FACTOR, CHALLENGE_CHOICE, CHALLENGE_CODE, TARGET = range(6)
