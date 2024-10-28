@@ -7,6 +7,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-ENV API=<your_telegram_bot_token>
+ENV API=7043515654:AAHpJPrcHoh9v0MlOjEgRoT3uwKwIz6ayso
 
 CMD ["python", "bot.py"]
