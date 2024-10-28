@@ -2,7 +2,6 @@ import os
 import asyncio
 import requests
 import tempfile
-from dotenv import load_dotenv
 from instagrapi import Client
 from instagrapi.exceptions import LoginRequired, TwoFactorRequired, ChallengeRequired
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
