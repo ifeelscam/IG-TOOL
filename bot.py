@@ -14,7 +14,7 @@ TOKEN = os.getenv("API")
 USERNAME, PASSWORD, TWO_FACTOR, CHALLENGE_CHOICE, CHALLENGE_CODE, TARGET = range(6)
 
 # Channel usernames
-CHANNELS = ['OgCodX', 'OutlawBots']
+CHANNELS = ['OutlawBots']
 
 # Check if user is in required channels
 async def check_channel_membership(update: Update):
