@@ -1,3 +1,4 @@
-instagrapi
-python-telegram-bot
-requests
+instagrapi==1.9.1  # Replace with the latest version if necessary
+requests==2.25.1   # Replace with the latest version if necessary
+python-telegram-bot==20.0  # Replace with the latest version if necessary
+Pillow>=8.1.1      # Add this line to include Pillow
