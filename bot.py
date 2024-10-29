@@ -5,7 +5,7 @@ import tempfile
 from instagrapi import Client
 from instagrapi.exceptions import LoginRequired, TwoFactorRequired, ChallengeRequired
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes, ConversationHandler
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
 
 # Load token from environment variable
 TOKEN = os.getenv("API")
@@ -27,7 +27,7 @@ async def check_channel_membership(update: Update):
     
     return all(status in ['member', 'administrator'] for status in member_statuses)
 
-# Start the conversation with login button
+# Start the conversation with login command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await check_channel_membership(update):
         keyboard = [
@@ -41,16 +41,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                          "Please join them and click the button below to log in.", reply_markup=reply_markup)
         return ConversationHandler.END
 
-    keyboard = [[InlineKeyboardButton("Login To Start", callback_data='login')]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("Welcome! Click the button below to log in.", reply_markup=reply_markup)
+    await update.message.reply_text("Welcome! Please enter /login to start the login process.")
     return ConversationHandler.END
 
-# Callback for "Login To Start" button click
+# Command for starting login
 async def login_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    await query.edit_message_text(text="Please enter your Instagram username:")
+    await update.message.reply_text("Please enter your Instagram username:")
     return USERNAME
 
 # Handler for username input
@@ -86,10 +82,7 @@ async def password_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return TWO_FACTOR
 
     except ChallengeRequired:
-        challenge_choices = ["EMAIL", "SMS"]
-        keyboard = [[InlineKeyboardButton(choice, callback_data=f'challenge_{choice}') for choice in challenge_choices]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text("Login challenge required. Please choose the method to receive the security code:", reply_markup=reply_markup)
+        await update.message.reply_text("Login challenge required. Please enter /email or /sms to receive the security code:")
         return CHALLENGE_CHOICE
 
     except LoginRequired as e:
@@ -100,33 +93,21 @@ async def password_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"An error occurred: {str(e)}. Please try again.")
         return ConversationHandler.END
 
-# Handler for two-factor authentication
-async def two_factor_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    code = update.message.text
-    cl = context.user_data.get('cl')
-
-    try:
-        cl.two_factor_login(code)
-        await update.message.reply_text("Successfully logged in. Please enter the target Instagram username to fetch their profile:")
-        return TARGET
-    except Exception as e:
-        await update.message.reply_text(f"Two-factor authentication failed: {str(e)}. Please try again.")
-        return ConversationHandler.END
-
-# Handler for challenge choice
+# Command for challenge choice
 async def challenge_choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
+    choice = update.message.text.strip().lower()
+    if choice not in ['email', 'sms']:
+        await update.message.reply_text("Invalid choice. Please enter /email or /sms.")
+        return CHALLENGE_CHOICE
     
-    choice = query.data.split('_')[1]
     cl = context.user_data.get('cl')
     
     try:
         cl.challenge_resolve(choice)
-        await query.edit_message_text(f"Security code sent via {choice}. Please enter the code:")
+        await update.message.reply_text(f"Security code sent via {choice}. Please enter the code:")
         return CHALLENGE_CODE
     except Exception as e:
-        await query.edit_message_text(f"Failed to send security code: {str(e)}. Please try logging in again.")
+        await update.message.reply_text(f"Failed to send security code: {str(e)}. Please try logging in again.")
         return ConversationHandler.END
 
 # Handler for challenge code
@@ -183,33 +164,24 @@ async def fetch_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # If image download fails, send just the profile info
             await update.message.reply_text(f"Couldn't fetch profile picture. Here's the profile info:\n\n{profile_info}")
 
-        # Add button for timed messages
-        keyboard = [[InlineKeyboardButton(f"Start Reporting {user_info.username}", callback_data=f'start_{user_info.username}')]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text("Click the button to start the process:", reply_markup=reply_markup)
-
     except Exception as e:
         await update.message.reply_text(f"Error fetching profile: {str(e)}")
 
     return ConversationHandler.END
 
-# Callback for the "Start username" button
-async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-
-    if query.data.startswith('start_'):
-        username = query.data.split('_')[1]
-        await query.edit_message_text(text=f"Started Report process for {username}")
-        
-        # Send "Started" message
-        await context.bot.send_message(chat_id=update.effective_chat.id, text="Reporting Via AI...")
-        
-        # Wait for 5 seconds
-        await asyncio.sleep(5)
-        
-        # Send "Done" message
-        await context.bot.send_message(chat_id=update.effective_chat.id, text="Reporting Done")
+# Command for starting reporting
+async def start_reporting(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    username = update.message.text.strip()
+    await update.message.reply_text(f"Started Report process for {username}")
+    
+    # Send "Started" message
+    await context.bot.send_message(chat_id=update.effective_chat.id, text="Reporting Via AI...")
+    
+    # Wait for 5 seconds
+    await asyncio.sleep(5)
+    
+    # Send "Done" message
+    await context.bot.send_message(chat_id=update.effective_chat.id, text="Reporting Done")
 
 # Main function to set up the bot
 def main():
@@ -222,12 +194,12 @@ def main():
 
     # Conversation handler for managing user login and fetching profile
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start)],
+        entry_points=[CommandHandler('start', start), CommandHandler('login', login_start)],
         states={
             USERNAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, username_handler)],
             PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, password_handler)],
             TWO_FACTOR: [MessageHandler(filters.TEXT & ~filters.COMMAND, two_factor_handler)],
-            CHALLENGE_CHOICE: [CallbackQueryHandler(challenge_choice_handler, pattern='^challenge_')],
+            CHALLENGE_CHOICE: [MessageHandler(filters.TEXT & ~filters.COMMAND, challenge_choice_handler)],
             CHALLENGE_CODE: [MessageHandler(filters.TEXT & ~filters.COMMAND, challenge_code_handler)],
             TARGET: [MessageHandler(filters.TEXT & ~filters.COMMAND, fetch_profile)],
         },
@@ -236,11 +208,11 @@ def main():
     )
 
     application.add_handler(conv_handler)
-    application.add_handler(CallbackQueryHandler(button_callback, pattern='^start_'))
+    application.add_handler(CommandHandler('start_reporting', start_reporting))
 
     # Start the bot
     application.run_polling()
 
 if __name__ == "__main__":
     main()
-    
+                                                                                                           
