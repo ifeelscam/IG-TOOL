@@ -95,14 +95,13 @@ async def send_reports(target_username, report_type, count, update: Update):
 
         active_session_index = (active_session_index + 1) % len(sessions)
         time.sleep(1)
-        
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Operation cancelled.")
     return ConversationHandler.END
 
 async def main():
-    application = Application.builder().token("7043515654:AAG-KC190f6tioW4vwpTEBTv3UdDpfDeFGY").build()
+    application = Application.builder().token("YOUR_BOT_TOKEN").build()
     
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
@@ -117,7 +116,8 @@ async def main():
 
     application.add_handler(conv_handler)
 
-    await application.start()
+    await application.initialize()  # Initialize the application
+    await application.start()        # Start the bot
 
     async def handle_health_check(request):
         return web.Response(text="Bot is running!")
