@@ -14,7 +14,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Expose the port used by the bot
-EXPOSE 8443  # Change if using a different port
+EXPOSE 8443 
+# Change if using a different port
 
 # Command to run the bot
 CMD ["python", "bot.py"]
