@@ -133,11 +133,11 @@ async def main():
     # Keep the bot running with run_polling()
     application.run_polling()
 
-if __name__ == "__main__":
+def run_bot():
     try:
-        asyncio.get_running_loop()
-        # If an event loop is already running, run main() directly
-        await main()
-    except RuntimeError:
-        # No running event loop, so we can use asyncio.run()
+        asyncio.get_running_loop().run_until_complete(main())
+    except RuntimeError:  # If no event loop is running, start one
         asyncio.run(main())
+
+if __name__ == "__main__":
+    run_bot()
