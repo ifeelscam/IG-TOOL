@@ -1,6 +1,6 @@
 import requests
-from telegram import Bot, Update
-from telegram.ext import Updater, CommandHandler, CallbackContext
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import schedule
 import threading
 import time
@@ -10,8 +10,6 @@ from datetime import datetime
 TELEGRAM_BOT_TOKEN = '6949336800:AAF1Sjv-EXSbkkno1HKCGzA9HMtUhM7N5FE'
 instagram_usernames = {}
 monitoring = False
-
-bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
 def check_instagram_account(username, chat_id):
     url = f'https://www.instagram.com/{username}/'
@@ -37,7 +35,7 @@ def job():
                          f"Time of Check: {time_banned}"
                 )
 
-def start_monitoring(update: Update, context: CallbackContext):
+def start_monitoring(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global monitoring
     monitoring = True
     welcome_message = (
@@ -48,12 +46,12 @@ def start_monitoring(update: Update, context: CallbackContext):
     )
     update.message.reply_text(welcome_message)
 
-def stop_monitoring(update: Update, context: CallbackContext):
+def stop_monitoring(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global monitoring
     monitoring = False
     update.message.reply_text("Monitoring stopped!")
 
-def set_instagram_username(update: Update, context: CallbackContext):
+def set_instagram_username(update: Update, context: ContextTypes.DEFAULT_TYPE):
     username = context.args[0] if context.args else None
     if username:
         instagram_usernames[update.message.chat_id] = username
@@ -69,20 +67,18 @@ def schedule_jobs():
 
 def main():
     # Setup Telegram bot
-    updater = Updater(TELEGRAM_BOT_TOKEN)
-    dispatcher = updater.dispatcher
+    application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
     # Command handlers
-    dispatcher.add_handler(CommandHandler("start", start_monitoring))
-    dispatcher.add_handler(CommandHandler("stop", stop_monitoring))
-    dispatcher.add_handler(CommandHandler("monitor", set_instagram_username))
+    application.add_handler(CommandHandler("start", start_monitoring))
+    application.add_handler(CommandHandler("stop", stop_monitoring))
+    application.add_handler(CommandHandler("monitor", set_instagram_username))
 
     # Start the scheduler in a separate thread
     threading.Thread(target=schedule_jobs, daemon=True).start()
 
     # Start the bot
-    updater.start_polling()
-    updater.idle()
+    application.run_polling()
 
 if __name__ == '__main__':
     main()
