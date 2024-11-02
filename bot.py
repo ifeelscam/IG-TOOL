@@ -35,7 +35,7 @@ def job():
                          f"Time of Check: {time_banned}"
                 )
 
-def start_monitoring(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start_monitoring(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global monitoring
     monitoring = True
     welcome_message = (
@@ -44,20 +44,20 @@ def start_monitoring(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "You will receive notifications if your account is banned or not accessible.\n"
         "Use /stop to stop monitoring."
     )
-    update.message.reply_text(welcome_message)
+    await update.message.reply_text(welcome_message)
 
-def stop_monitoring(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def stop_monitoring(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global monitoring
     monitoring = False
-    update.message.reply_text("Monitoring stopped!")
+    await update.message.reply_text("Monitoring stopped!")
 
-def set_instagram_username(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def set_instagram_username(update: Update, context: ContextTypes.DEFAULT_TYPE):
     username = context.args[0] if context.args else None
     if username:
         instagram_usernames[update.message.chat_id] = username
-        update.message.reply_text(f'Instagram username {username} set for monitoring.')
+        await update.message.reply_text(f'Instagram username {username} set for monitoring.')
     else:
-        update.message.reply_text('Please provide an Instagram username.')
+        await update.message.reply_text('Please provide an Instagram username.')
 
 def schedule_jobs():
     schedule.every(10).minutes.do(job)
