@@ -1,7 +1,7 @@
 import os
 import asyncio
 from telegram import Update, Document
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler, HTTPXRequest
 from instabot import Bot
 import time
 from aiohttp import web
@@ -101,7 +101,13 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return ConversationHandler.END
 
 async def main():
-    application = Application.builder().token("7043515654:AAG-KC190f6tioW4vwpTEBTv3UdDpfDeFGY").build()
+    # Set up the request with an extended timeout (e.g., 60 seconds) and optional proxy
+    request = HTTPXRequest(connect_timeout=60.0, read_timeout=60.0)
+    
+    # Uncomment the following line if you need to use a proxy
+    # request = HTTPXRequest(connect_timeout=60.0, read_timeout=60.0, proxy="http://your-proxy-server:port")
+
+    application = Application.builder().token("7043515654:AAG-KC190f6tioW4vwpTEBTv3UdDpfDeFGY").request(request).build()
     
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
@@ -116,8 +122,7 @@ async def main():
 
     application.add_handler(conv_handler)
 
-    await application.initialize()  # Initialize the application
-    await application.start()        # Start the bot
+    await application.initialize()
 
     async def handle_health_check(request):
         return web.Response(text="Bot is running!")
@@ -131,7 +136,8 @@ async def main():
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
 
-    await application.idle()
+    # Replace application.idle() with run_polling() to keep the bot running
+    application.run_polling()
 
 if __name__ == "__main__":
     asyncio.run(main())
