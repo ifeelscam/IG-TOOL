@@ -189,7 +189,7 @@ async def start_aiohttp_server():
 
 # Main function to set up the bot
 def main():
-    application = Application.builder().token("YOUR_TELEGRAM_BOT_TOKEN").build()
+    application = Application.builder().token("7043515654:AAG-KC190f6tioW4vwpTEBTv3UdDpfDeFGY").build()
 
     # Add handlers
     application.add_handler(CommandHandler('start', start))
