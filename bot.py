@@ -1,7 +1,7 @@
 import os
 import asyncio
 from telegram import Update, Document
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler, HTTPXRequest
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
 from instabot import Bot
 import time
 from aiohttp import web
@@ -101,13 +101,8 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return ConversationHandler.END
 
 async def main():
-    # Set up the request with an extended timeout (e.g., 60 seconds) and optional proxy
-    request = HTTPXRequest(connect_timeout=60.0, read_timeout=60.0)
-    
-    # Uncomment the following line if you need to use a proxy
-    # request = HTTPXRequest(connect_timeout=60.0, read_timeout=60.0, proxy="http://your-proxy-server:port")
-
-    application = Application.builder().token("7043515654:AAG-KC190f6tioW4vwpTEBTv3UdDpfDeFGY").request(request).build()
+    # Build the application without HTTPXRequest, relying on default timeouts
+    application = Application.builder().token("7043515654:AAG-KC190f6tioW4vwpTEBTv3UdDpfDeFGY").build()
     
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
@@ -136,7 +131,7 @@ async def main():
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
 
-    # Replace application.idle() with run_polling() to keep the bot running
+    # Keep the bot running with run_polling()
     application.run_polling()
 
 if __name__ == "__main__":
