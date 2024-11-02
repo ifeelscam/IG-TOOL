@@ -1,85 +1,148 @@
-import requests
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-import schedule
-import threading
+import sys
+import subprocess
+import json
 import time
-from datetime import datetime
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
 
-# Configuration
-TELEGRAM_BOT_TOKEN = '6949336800:AAF1Sjv-EXSbkkno1HKCGzA9HMtUhM7N5FE'
-instagram_usernames = {}
-monitoring = False
+# Function to check and install required packages
+def install(package):
+    subprocess.check_call([sys.executable, "-m", "pip", "install", package])
 
-def check_instagram_account(username, chat_id):
-    url = f'https://www.instagram.com/{username}/'
-    try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            return True, None  # Account exists
-        elif response.status_code == 404:
-            return False, "Account does not exist or is private."
-    except Exception as e:
-        return False, str(e)
+# Check if required modules are installed; if not, attempt to install them
+try:
+    from telegram import __version__ as TG_VER
+    from telegram.ext import __version__ as TG_EXT_VER
+    from instabot import Bot
+except ImportError:
+    print("Installing required packages...")
+    install("python-telegram-bot")
+    install("instabot")
 
-def job():
-    if monitoring:
-        for chat_id, username in instagram_usernames.items():
-            account_exists, error_message = check_instagram_account(username, chat_id)
-            if not account_exists:
-                time_banned = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                bot.send_message(
-                    chat_id=chat_id,
-                    text=f"Your Instagram account {username} has been banned or is not accessible.\n"
-                         f"Reason: {error_message}\n"
-                         f"Time of Check: {time_banned}"
-                )
+# Dictionary to store sessions and related information
+sessions = []
+active_session_index = 0
+report_types = {
+    "1": "spam",
+    "2": "self-harm",
+    "3": "drugs",
+    "4": "violence",
+}
 
-async def start_monitoring(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global monitoring
-    monitoring = True
-    welcome_message = (
-        "Welcome to the Instagram Account Monitor Bot!\n"
-        "Use the command /monitor followed by your Instagram username to start monitoring your account.\n"
-        "You will receive notifications if your account is banned or not accessible.\n"
-        "Use /stop to stop monitoring."
+# Function to load accounts from file and confirm login with session ID
+async def load_accounts(file_path="login_file.txt", update=None):
+    global sessions
+    with open(file_path, 'r') as f:
+        for line in f:
+            username, password = line.strip().split(':')
+            bot = Bot()
+            try:
+                bot.login(username=username, password=password)
+                session_id = bot.api.sessionid
+                sessions.append(bot)
+                await update.message.reply_text(f"✅ Logged in successfully as {username}\nSession ID: {session_id}")
+            except Exception as e:
+                await update.message.reply_text(f"❌ Login failed for {username}: {str(e)}")
+
+# Define conversation states
+LOGIN, REPORT_TYPE, TARGET_USERNAME, REPORT_COUNT, HELP = range(5)
+
+# Start command to initialize the bot
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    await update.message.reply_text(
+        "Welcome to the Instagram Moderation Bot!\nPlease upload your login file (format: username:password, one per line)."
     )
-    await update.message.reply_text(welcome_message)
+    return LOGIN
 
-async def stop_monitoring(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global monitoring
-    monitoring = False
-    await update.message.reply_text("Monitoring stopped!")
+# Help command to provide information about the bot
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    help_text = (
+        "This bot helps you report Instagram accounts based on various categories.\n"
+        "Commands:\n"
+        "/start - Start the bot and upload your login file.\n"
+        "/help - Show this help message.\n"
+        "/cancel - Cancel the current operation."
+    )
+    await update.message.reply_text(help_text)
 
-async def set_instagram_username(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    username = context.args[0] if context.args else None
-    if username:
-        instagram_usernames[update.message.chat_id] = username
-        await update.message.reply_text(f'Instagram username {username} set for monitoring.')
+# Handle file upload and account login
+async def handle_file_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    file = await update.message.document.get_file()
+    file.download('login_file.txt')
+    await load_accounts("login_file.txt", update)
+    await update.message.reply_text(f"Accounts loaded. Total accounts: {len(sessions)}.\nChoose a report type:\n1. Spam\n2. Self-harm\n3. Drugs\n4. Violence")
+    return REPORT_TYPE
+
+# Select report type
+async def select_report_type(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    choice = update.message.text
+    if choice in report_types:
+        context.user_data['report_type'] = report_types[choice]
+        await update.message.reply_text("Enter the target Instagram username:")
+        return TARGET_USERNAME
     else:
-        await update.message.reply_text('Please provide an Instagram username.')
+        await update.message.reply_text("Invalid choice. Please select a valid report type.")
+        return REPORT_TYPE
 
-def schedule_jobs():
-    schedule.every(10).minutes.do(job)
-    while True:
-        schedule.run_pending()
-        time.sleep(1)
+# Set target username
+async def set_target_username(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data['target_username'] = update.message.text
+    await update.message.reply_text("How many reports would you like to send?")
+    return REPORT_COUNT
 
+# Set report count and start reporting
+async def set_report_count(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    try:
+        count = int(update.message.text)
+        context.user_data['report_count'] = count
+        await update.message.reply_text("Starting the reporting process...")
+        await send_reports(context.user_data['target_username'], context.user_data['report_type'], count, update)
+        await update.message.reply_text("Reporting complete.")
+        return ConversationHandler.END
+    except ValueError:
+        await update.message.reply_text("Please enter a valid number.")
+        return REPORT_COUNT
+
+# Function for rotating accounts and sending reports
+async def send_reports(target_username, report_type, count, update: Update):
+    global active_session_index
+
+    for i in range(count):
+        session = sessions[active_session_index]
+        try:
+            session.report(target_username, report_type)
+            await update.message.reply_text(f"Report {i+1}/{count} sent using account {session.username}")
+        except Exception as e:
+            await update.message.reply_text(f"Failed to report with account {session.username}: {str(e)}")
+
+        active_session_index = (active_session_index + 1) % len(sessions)
+        time.sleep(1)  # Respect Instagram's rate limits with a delay
+
+# Cancel operation
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    await update.message.reply_text("Operation cancelled.")
+    return ConversationHandler.END
+
+# Main function to run the bot
 def main():
-    # Setup Telegram bot
-    application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+    application = Application.builder().token("7043515654:AAG-KC190f6tioW4vwpTEBTv3UdDpfDeFGY").build()
 
-    # Command handlers
-    application.add_handler(CommandHandler("start", start_monitoring))
-    application.add_handler(CommandHandler("stop", stop_monitoring))
-    application.add_handler(CommandHandler("monitor", set_instagram_username))
+    # Conversation handler for the reporting workflow
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler('start', start)],
+        states={
+            LOGIN: [MessageHandler(filters.Document.FileExtension("txt"), handle_file_upload)],
+            REPORT_TYPE: [MessageHandler(filters.TEXT & ~filters.COMMAND, select_report_type)],
+            TARGET_USERNAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_target_username)],
+            REPORT_COUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_report_count)],
+        },
+        fallbacks=[CommandHandler('cancel', cancel)],
+    )
 
-    # Start the scheduler in a separate thread
-    threading.Thread(target=schedule_jobs, daemon=True).start()
-
-    # Start the bot
+    application.add_handler(conv_handler)
+    application.add_handler(CommandHandler('help', help_command))  # Adding help command
     application.run_polling()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
     
