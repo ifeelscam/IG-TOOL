@@ -101,7 +101,6 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return ConversationHandler.END
 
 async def main():
-    # Build the application without HTTPXRequest, relying on default timeouts
     application = Application.builder().token("7043515654:AAG-KC190f6tioW4vwpTEBTv3UdDpfDeFGY").build()
     
     conv_handler = ConversationHandler(
@@ -135,4 +134,10 @@ async def main():
     application.run_polling()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.get_running_loop()
+        # If an event loop is already running, run main() directly
+        await main()
+    except RuntimeError:
+        # No running event loop, so we can use asyncio.run()
+        asyncio.run(main())
