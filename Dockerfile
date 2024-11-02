@@ -7,6 +7,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-ENV API=7043515654:AAHpJPrcHoh9v0MlOjEgRoT3uwKwIz6ayso
+ENV API=6949336800:AAF1Sjv-EXSbkkno1HKCGzA9HMtUhM7N5FE
 
 CMD ["python", "bot.py"]
