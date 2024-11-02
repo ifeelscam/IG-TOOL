@@ -7,7 +7,7 @@ import time
 from datetime import datetime
 
 # Configuration
-TELEGRAM_BOT_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'
+TELEGRAM_BOT_TOKEN = '6949336800:AAF1Sjv-EXSbkkno1HKCGzA9HMtUhM7N5FE'
 instagram_usernames = {}
 monitoring = False
 
