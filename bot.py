@@ -119,7 +119,7 @@ async def start_aiohttp_server():
 
 # Main function to set up the bot
 def main():
-    application = Application.builder().token("YOUR_BOT_TOKEN_HERE").build()
+    application = Application.builder().token("7043515654:AAG-KC190f6tioW4vwpTEBTv3UdDpfDeFGY").build()
 
     # Conversation handler with states for login, report type selection, etc.
     conv_handler = ConversationHandler(
