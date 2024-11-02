@@ -3,6 +3,9 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from instabot import Bot
 import asyncio
 from aiohttp import web
+import time
+import json
+import os
 
 # Define conversation states
 LOGIN, REPORT_TYPE, TARGET_USERNAME, REPORT_COUNT, MANUAL_LOGIN_USERNAME, MANUAL_LOGIN_PASSWORD = range(6)
@@ -17,42 +20,109 @@ report_types = {
     "4": "violence",
 }
 
+# Set maximum login attempts
+MAX_LOGIN_ATTEMPTS = 5
+CREDENTIALS_FILE = "credentials.json"
+
+# Load saved credentials from a JSON file
+def load_credentials():
+    if os.path.exists(CREDENTIALS_FILE):
+        with open(CREDENTIALS_FILE, 'r') as f:
+            return json.load(f)
+    return {}
+
+# Save new credentials to a JSON file
+def save_credentials(username, password):
+    credentials = load_credentials()
+    credentials[username] = password
+    with open(CREDENTIALS_FILE, 'w') as f:
+        json.dump(credentials, f)
+
 # Start command to initialize the bot
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text(
-        "Welcome to the Instagram Moderation Bot!\nUse /login to enter your credentials."
+        "Welcome to the Instagram Moderation Bot!\nUse /login to enter your credentials or /fastlogin for quick login."
     )
     return ConversationHandler.END
 
 # Handle login command
 async def login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if sessions:
+        await update.message.reply_text("You are already logged in. Use /switch to change accounts.")
+        return ConversationHandler.END
+    
     await update.message.reply_text("Please enter your Instagram username:")
     return MANUAL_LOGIN_USERNAME
 
+# Fast login command
+async def fast_login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    credentials = load_credentials()
+    if not credentials:
+        await update.message.reply_text("No saved credentials found. Please log in first using /login.")
+        return ConversationHandler.END
+    
+    await update.message.reply_text("Select your account to log in quickly:")
+    for username in credentials.keys():
+        await update.message.reply_text(username)
+
+    return MANUAL_LOGIN_USERNAME  # Expecting a username from the user
+
 # Set username for manual login
 async def set_manual_login_username(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data['username'] = update.message.text
+    username = update.message.text
+    context.user_data['username'] = username
+
+    # Check if using fast login
+    credentials = load_credentials()
+    if username in credentials:
+        context.user_data['password'] = credentials[username]
+        await update.message.reply_text(f"Using saved password for {username}. Logging in...")
+        return await set_manual_login_password(update, context)
+    
     await update.message.reply_text("Please enter your Instagram password:")
     return MANUAL_LOGIN_PASSWORD
 
 # Set password for manual login and confirm login
 async def set_manual_login_password(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     username = context.user_data.get('username')
-    password = update.message.text
-    bot = Bot()
-    try:
-        bot.login(username=username, password=password)
-        session_id = bot.api.sessionid
-        sessions.append(bot)
-        await update.message.reply_text(f"✅ Logged in successfully as {username}\nSession ID: {session_id}")
+    password = context.user_data.get('password', update.message.text)  # Get password from saved if fast login
 
-        await update.message.reply_text(
-            f"Account loaded. Total accounts: {len(sessions)}.\nChoose a report type:\n1. Spam\n2. Self-harm\n3. Drugs\n4. Violence"
-        )
-        return REPORT_TYPE
-    except Exception as e:
-        await update.message.reply_text(f"❌ Login failed for {username}: {str(e)}")
-        return ConversationHandler.END
+    bot = Bot()
+    
+    for attempt in range(MAX_LOGIN_ATTEMPTS):
+        try:
+            bot.login(username=username, password=password)
+            session_id = bot.api.sessionid
+            sessions.append(bot)
+            await update.message.reply_text(f"✅ Logged in successfully as {username}\nSession ID: {session_id}")
+
+            # Ask if user wants to save credentials
+            await update.message.reply_text("Do you want to save your credentials for faster login? (yes/no)")
+            return LOGIN  # Expecting a yes/no response
+        except Exception as e:
+            if "429" in str(e):
+                wait_time = (attempt + 1) * 5  # Wait longer with each attempt
+                await update.message.reply_text(f"❌ Too many requests. Waiting for {wait_time} seconds...")
+                time.sleep(wait_time)  # Sleep before retrying
+            else:
+                await update.message.reply_text(f"❌ Login failed for {username}: {str(e)}")
+                return ConversationHandler.END
+
+    await update.message.reply_text("❌ Maximum login attempts reached. Please try again later.")
+    return ConversationHandler.END
+
+# Save credentials if user agrees
+async def save_user_credentials(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if update.message.text.lower() == 'yes':
+        username = context.user_data.get('username')
+        password = context.user_data.get('password')
+        save_credentials(username, password)
+        await update.message.reply_text("✅ Credentials saved successfully!")
+    else:
+        await update.message.reply_text("❌ Credentials not saved.")
+    
+    await update.message.reply_text("Choose a report type:\n1. Spam\n2. Self-harm\n3. Drugs\n4. Violence")
+    return REPORT_TYPE
 
 # Select report type
 async def select_report_type(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -119,14 +189,20 @@ async def start_aiohttp_server():
 
 # Main function to set up the bot
 def main():
-    application = Application.builder().token("7043515654:AAG-KC190f6tioW4vwpTEBTv3UdDpfDeFGY").build()
+    application = Application.builder().token("YOUR_TELEGRAM_BOT_TOKEN").build()
+
+    # Add handlers
+    application.add_handler(CommandHandler('start', start))
+    application.add_handler(CommandHandler('login', login))
+    application.add_handler(CommandHandler('fastlogin', fast_login))
 
     # Conversation handler with states for login, report type selection, etc.
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('login', login)],
+        entry_points=[CommandHandler('login', login), CommandHandler('fastlogin', fast_login)],
         states={
             MANUAL_LOGIN_USERNAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_manual_login_username)],
             MANUAL_LOGIN_PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_manual_login_password)],
+            LOGIN: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_user_credentials)],
             REPORT_TYPE: [MessageHandler(filters.TEXT & ~filters.COMMAND, select_report_type)],
             TARGET_USERNAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_target_username)],
             REPORT_COUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_report_count)],
@@ -144,4 +220,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-  
+    
