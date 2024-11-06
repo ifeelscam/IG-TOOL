@@ -4,3 +4,6 @@ schedule
 beautifulsoup4
 instabot
 aiohttp
+Flask
+Faker
+user-agent
