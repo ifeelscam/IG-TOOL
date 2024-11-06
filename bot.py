@@ -1,9 +1,10 @@
 import logging
 import random
 import requests
-import time
+from flask import Flask, request
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from telegram.ext import CommandHandler, MessageHandler, Filters, ConversationHandler, CallbackContext
+from telegram.ext import Dispatcher
 from faker import Faker
 from user_agent import generate_user_agent
 
@@ -11,26 +12,51 @@ from user_agent import generate_user_agent
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize Faker
+# Initialize Faker and Flask app
 faker = Faker()
+app = Flask(__name__)
+
+# Initialize Telegram Bot
+TOKEN = "YOUR_TOKEN"  # Replace with your actual token
+bot = telegram.Bot(token=TOKEN)
+
+# Define conversation states
+USERNAME, TARGET_NAME = range(2)
+
+@app.route('/' + TOKEN, methods=['POST'])
+def webhook() -> str:
+    update = Update.de_json(request.get_json(force=True), bot)
+    dispatcher.process_update(update)
+    return 'ok'
 
 def start(update: Update, context: CallbackContext) -> None:
-    update.message.reply_text('Welcome to the Instagram Report Bot! Please use /report <username> <name> to report a user.')
+    update.message.reply_text('Welcome to the Instagram Report Bot! Use /report to start reporting a user.')
+    return ConversationHandler.END
 
-def report(update: Update, context: CallbackContext) -> None:
-    if len(context.args) != 2:
-        update.message.reply_text('Usage: /report <username> <name>')
-        return
+def report(update: Update, context: CallbackContext) -> int:
+    update.message.reply_text('Please enter the username of the account you want to report:')
+    return USERNAME
 
-    user = context.args[0]
-    target_name = context.args[1]
-    
-    update.message.reply_text(f'Reporting {user} (Target Name: {target_name})...')
-    
-    if InstaGramReporter(user, target_name):
+def get_username(update: Update, context: CallbackContext) -> int:
+    context.user_data['username'] = update.message.text
+    update.message.reply_text('Please enter the target name of the account:')
+    return TARGET_NAME
+
+def get_target_name(update: Update, context: CallbackContext) -> int:
+    username = context.user_data['username']
+    target_name = update.message.text
+    update.message.reply_text(f'Reporting {username} (Target Name: {target_name})...')
+
+    if InstaGramReporter(username, target_name):
         update.message.reply_text('Report submitted successfully!')
     else:
         update.message.reply_text('Failed to submit the report.')
+
+    return ConversationHandler.END
+
+def cancel(update: Update, context: CallbackContext) -> int:
+    update.message.reply_text('Report canceled.')
+    return ConversationHandler.END
 
 def InstaGramReporter(user: str, target_name: str) -> bool:
     try:
@@ -47,7 +73,6 @@ def InstaGramReporter(user: str, target_name: str) -> bool:
             "inputEmail": em,
             "Field249579765548460": target_name,
             "inputReportedUsername": user,
-            # Add other required fields here...
         }
         
         headers = {
@@ -72,18 +97,19 @@ def InstaGramReporter(user: str, target_name: str) -> bool:
         logger.error(f"Error: {e}")
         return False
 
-def main() -> None:
-    # Replace 'YOUR_TOKEN' with your bot's token
-    updater = Updater("YOUR_TOKEN")
+# Set up the conversation handler
+conv_handler = ConversationHandler(
+    entry_points=[CommandHandler('report', report)],
+    states={
+        USERNAME: [MessageHandler(Filters.text & ~Filters.command, get_username)],
+        TARGET_NAME: [MessageHandler(Filters.text & ~Filters.command, get_target_name)],
+    },
+    fallbacks=[CommandHandler('cancel', cancel)]
+)
 
-    dispatcher = updater.dispatcher
-
-    dispatcher.add_handler(CommandHandler("start", start))
-    dispatcher.add_handler(CommandHandler("report", report))
-
-    # Start the Bot
-    updater.start_polling()
-    updater.idle()
+dispatcher = Dispatcher(bot, None)
+dispatcher.add_handler(CommandHandler("start", start))
+dispatcher.add_handler(conv_handler)
 
 if __name__ == '__main__':
-    main()
+    app.run(host='0.0.0.0', port=5000)
