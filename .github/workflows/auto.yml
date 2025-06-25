@@ -20,7 +20,7 @@ jobs:
         run: |
           # 📆 Define Start & End Date
           START_DATE="2025-01-01"  # Apne account creation date ya kuch purani date daal sakte ho
-          END_DATE=$(date +%Y-%m-%d)
+          END_DATE="2025-06-24"
 
           FILE_NAME="snake_commits.txt"
           touch $FILE_NAME
