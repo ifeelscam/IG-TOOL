@@ -19,7 +19,7 @@ jobs:
       - name: 🐍 Generate Snake Pattern Commits
         run: |
           # 📆 Define Start & End Date
-          START_DATE="2024-09-01"  # Apne account creation date ya kuch purani date daal sakte ho
+          START_DATE="2024-06-01"  # Apne account creation date ya kuch purani date daal sakte ho
           END_DATE="2025-06-24"
 
           FILE_NAME="snake_commits.txt"
