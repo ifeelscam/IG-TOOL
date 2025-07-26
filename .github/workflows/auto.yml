@@ -19,7 +19,7 @@ jobs:
       - name: 🐍 Generate Snake Pattern Commits
         run: |
           # 📆 Define Start & End Date
-          START_DATE="2022-07-01"  
+          START_DATE="2022-01-01"  
           END_DATE="2023-07-26"
 
           FILE_NAME="snake_commits.txt"
